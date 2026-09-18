@@ -40,7 +40,7 @@ cask "yazses" do
 
   # Matches LSMinimumSystemVersion "11.0" declared by the app bundle itself in
   # packaging/macos/yazses.spec — keep the two in step.
-  depends_on macos: ">= :big_sur"
+  depends_on macos: :big_sur
 
   # Apple Silicon only, and this is a statement of fact about the artefact, not
   # a preference. The .dmg is built by .github/workflows/build-macos.yml on
