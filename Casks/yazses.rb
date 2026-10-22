@@ -19,8 +19,8 @@
 # worse than no cask: Homebrew refuses the download, so the first thing a new
 # user sees is a failure that looks like the project is broken.
 cask "yazses" do
-  version "2.43.2"
-  sha256 "11f13535d423fab6cc359783c0c57d35c3a52a9d5641760d43f9317ec7cd5f70"
+  version "2.44.0"
+  sha256 "3d14076513171893152f00a6a7f7d62f44bd99ba308bedaba2d8cc8c15f4a7cc"
 
   # arm64 explicitly in the filename since ADR-017: the .dmg used to be named as
   # though it were for everybody, which is a large part of why an Apple-silicon-only
@@ -38,8 +38,11 @@ cask "yazses" do
     strategy :github_latest
   end
 
-  # Matches LSMinimumSystemVersion "11.0" declared by the app bundle itself in
-  # packaging/macos/yazses.spec — keep the two in step.
+  # Matches the arm64 LSMinimumSystemVersion ("14.0", MIN_MACOS in
+  # packaging/macos/yazses.spec) -- keep the two in step. It used to be :big_sur, but
+  # the bundled PyAV and onnxruntime are built for macOS 14 (their Mach-O
+  # LC_BUILD_VERSION), and `import faster_whisper` loads PyAV, so the app could not
+  # dictate on 11-13; this refuses cleanly there instead of installing a broken app.
   #
   # SYMBOL form, not the string ">= :big_sur". Homebrew deprecated the string
   # comparison format in 5.1.15 and warns on EVERY brew call that touches this
@@ -51,7 +54,7 @@ cask "yazses" do
   # `cp packaging/homebrew/yazses.rb tap/Casks/yazses.rb` -- a whole-file
   # overwrite, so a fix merged only into the tap is reverted by the next
   # release. That is exactly what would have happened to theirs.
-  depends_on macos: :big_sur
+  depends_on macos: :sonoma
 
   # Apple Silicon only, and this is a statement of fact about the artefact, not
   # a preference. The .dmg is built by .github/workflows/build-macos.yml on
@@ -65,6 +68,20 @@ cask "yazses" do
   depends_on arch: :arm64
 
   app "YazSes.app"
+
+  # `yazses` on PATH, so the commands every guide gives (`yazses doctor`, `yazses
+  # status`) work after a Homebrew install. The bundle's one executable starts the
+  # menu-bar app unless told otherwise (default_mode in src/yazses/__main__.py), so
+  # the shim passes --cli explicitly rather than relying on its own name.
+  shimscript = "#{staged_path}/yazses.wrapper.sh"
+  binary shimscript, target: "yazses"
+
+  preflight do
+    File.write shimscript, <<~EOS
+      #!/bin/sh
+      exec '#{appdir}/YazSes.app/Contents/MacOS/YazSes' --cli "$@"
+    EOS
+  end
 
   # The daemon is a launchd LaunchAgent under com.yazses.daemon; tear it
   # down on uninstall before files vanish.
@@ -102,8 +119,12 @@ cask "yazses" do
     Default hotkey: Right Option. Configurable in:
         ~/Library/Application Support/yazses/config.toml
 
-    This is an unsigned developer preview. If macOS refuses to launch the
-    app, right-click YazSes.app and choose Open the first time.
+    This is an unsigned developer preview. The first launch is blocked: open
+    System Settings → Privacy & Security and click Open Anyway (on macOS 14 you
+    can instead right-click YazSes.app and choose Open).
+
+    The `yazses` command is on your PATH: try `yazses doctor`. The Settings
+    window and the on-screen overlay need macOS 15; dictation needs macOS 14.
 
     Because it is unsigned, macOS treats the app as a new identity whenever
     its hash changes, so you may have to re-grant BOTH Accessibility and Input
